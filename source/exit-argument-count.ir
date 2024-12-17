@@ -1,0 +1,19 @@
+target triple = "x86_64-unknown-linux-gnu"
+
+define void @system.exit(i32 %value) noreturn {
+	%value.0 = sext i32 %value to i64
+	call void asm inteldialect "mov rdi, $0", "{rax},~{rdi}"(i64 %value.0)
+	call void asm inteldialect "mov rax, 60", "~{rax}"()
+	call void asm sideeffect inteldialect "syscall", ""()
+	unreachable
+}
+
+%arguments = type { i32, [0 x i8 *] }
+
+define external void @system(%arguments * %arguments) noreturn {
+	%arguments.count.ptr = getelementptr %arguments, %arguments * %arguments, i32 0, i32 0
+	%arguments.count.0 = load i32, i32 * %arguments.count.ptr
+	%arguments.count.1 = sub i32 %arguments.count.0, 1
+	call void @system.exit(i32 %arguments.count.1) noreturn
+	ret void
+}
