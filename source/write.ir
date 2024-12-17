@@ -1,0 +1,22 @@
+target triple = "x86_64-unknown-linux-gnu"
+
+@system.output = constant i32 1
+
+define i64 @system.write(i32 %file, i8 * %value, i64 %size) {
+	%file.0 = sext i32 %file to i64
+	call void asm inteldialect "mov rdx, $0", "r,~{rdx}"(i64 %size)
+	call void asm inteldialect "mov rsi, $0", "r,~{rsi}"(i8* %value)
+	call void asm inteldialect "mov rdi, $0", "r,~{rdi}"(i64 %file.0)
+	call void asm inteldialect "mov rax, 1", "~{rax}"()
+	%system.write = call i64 asm sideeffect inteldialect "syscall", "={rax},~{rcx}"()
+	ret i64 %system.write
+}
+
+@value = private constant [14 x i8] c"Hello, world!\0a"
+
+define external void @system() noreturn {
+	%file = load i32, i32 * @system.output
+	%value = getelementptr [14 x i8], [14 x i8] * @value, i64 0, i64 0
+	call i64 @system.write(i32 %file, i8 * %value, i64 14) ; ignore potential error
+	ret void
+}

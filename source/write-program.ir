@@ -1,0 +1,55 @@
+target triple = "x86_64-unknown-linux-gnu"
+
+define void @system.exit(i32 %value) noreturn {
+	%value.0 = sext i32 %value to i64
+	call void asm inteldialect "mov rdi, $0", "{rax},~{rdi}"(i64 %value.0)
+	call void asm inteldialect "mov rax, 60", "~{rax}"()
+	call void asm sideeffect inteldialect "syscall", ""()
+	unreachable
+}
+
+@system.output = constant i32 1
+
+define i64 @system.write(i32 %file, i8 * %value, i64 %size) {
+	%file.0 = sext i32 %file to i64
+	call void asm inteldialect "mov rdx, $0", "r,~{rdx}"(i64 %size)
+	call void asm inteldialect "mov rsi, $0", "r,~{rsi}"(i8* %value)
+	call void asm inteldialect "mov rdi, $0", "r,~{rdi}"(i64 %file.0)
+	call void asm inteldialect "mov rax, 1", "~{rax}"()
+	%system.write = call i64 asm sideeffect inteldialect "syscall", "={rax},~{rcx}"()
+	ret i64 %system.write
+}
+
+%system.arguments = type { i32, [0 x i8 *] }
+
+@line = private constant i8 u0x0A
+
+define external void @system(%system.arguments * %arguments) noreturn {
+	enter:
+		%count.ptr = getelementptr %system.arguments, %system.arguments * %arguments, i64 0, i32 0
+		%count = load i32, i32 * %count.ptr
+		%enter.condition = icmp sge i32 %count, 1
+		br i1 %enter.condition, label %read, label %exit
+	read:
+		%program.ptr = getelementptr %system.arguments, %system.arguments * %arguments, i64 0, i32 1, i64 0
+		%program = load i8 *, i8 * * %program.ptr
+		br label %size.enter
+	size.enter:
+		%size = phi i64 [ 0, %read ], [ %size.loop.value, %size.loop ]
+		%character.ptr = getelementptr i8, i8 * %program, i64 %size
+		%character = load i8, i8 * %character.ptr
+		%size.enter.condition = icmp eq i8 %character, 0
+		br i1 %size.enter.condition, label %write, label %size.loop
+	size.loop:
+		%size.loop.value = add i64 %size, 1
+		br label %size.enter
+	write:
+		%file = load i32, i32 * @system.output
+		call i64 @system.write(i32 %file, i8 * %program, i64 %size) ; ignore potential error
+		call i64 @system.write(i32 %file, i8 * @line, i64 1) ; ignore potential error
+		br label %exit
+	exit:
+		%exit.value = phi i32 [0, %write], [1, %enter]
+		call void @system.exit(i32 %exit.value) noreturn
+		unreachable
+}
